@@ -172,6 +172,7 @@ check_ssacli() {
     ctrl_detail=$("$bin" ctrl slot="$slot" show detail 2>/dev/null)
     fw=$(echo "$ctrl_detail" | grep -i "Firmware Version" | head -1 | awk -F: '{print $2}' | sed 's/^ *//')
     ctrl_temp_raw=$(echo "$ctrl_detail" | grep -i "Controller Temperature" | awk -F: '{print $2}')
+    cache_temp_raw=$(echo "$ctrl_detail" | grep -i "Cache Module Temperature" | awk -F: '{print $2}')
     battery=$(echo "$ctrl_detail" | grep -iE "Battery/Capacitor Status|Cache Status" | head -1 | awk -F: '{print $2}' | sed 's/^ *//')
     [ -z "$battery" ] && battery="n/a"
 
@@ -184,11 +185,13 @@ check_ssacli() {
     max_drive_temp=$(echo "$drive_temps" | grep -oE '[0-9]+C' | grep -oE '[0-9]+' | sort -n | tail -1)
 
     ctrl_temp_line=$(check_temp "$ctrl_temp_raw"); ctrl_temp_rc=$?
+    cache_temp_line=$(check_temp "$cache_temp_raw"); cache_temp_rc=$?
     drive_temp_line=$(check_temp "$max_drive_temp"); drive_temp_rc=$?
     dsum=$(drive_summary "$pd")
 
     REPORT="$REPORT Firmware       : ${fw:-unknown}\n"
     REPORT="$REPORT Controller Temp: $ctrl_temp_line\n"
+    REPORT="$REPORT Cache Module Temp: $cache_temp_line\n"
     REPORT="$REPORT Battery/Cache  : $battery\n"
     REPORT="$REPORT Drive Summary  : $dsum\n"
     REPORT="$REPORT Max Drive Temp : $drive_temp_line\n"
@@ -204,10 +207,12 @@ check_ssacli() {
 
     raise_state "$rc"
     raise_state "$ctrl_temp_rc"
+    raise_state "$cache_temp_rc"
     raise_state "$drive_temp_rc"
 
     final_rc=$rc
     [ "$ctrl_temp_rc" -gt "$final_rc" ] && final_rc=$ctrl_temp_rc
+    [ "$cache_temp_rc" -gt "$final_rc" ] && final_rc=$cache_temp_rc
     [ "$drive_temp_rc" -gt "$final_rc" ] && final_rc=$drive_temp_rc
 
     add_json_item "HPE" "slot$slot" "$(state_word $final_rc)" "$(strip_color "$ctrl_temp_line")" "$(strip_color "$drive_temp_line")" "$battery"
